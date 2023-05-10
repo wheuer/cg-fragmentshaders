@@ -1,2 +1,2 @@
-# cg-fragmentshaders
+# CG Fragment Shaders
 Fun with Fragment Shaders!
