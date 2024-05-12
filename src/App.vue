@@ -1,4 +1,6 @@
-<script>
+<script setup>
+import { reactive, onMounted } from 'vue';
+
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
@@ -7,197 +9,198 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { ShaderMaterial } from '@babylonjs/core/Materials/shaderMaterial';
 import { VideoTexture } from '@babylonjs/core/Materials/Textures/videoTexture';
+import { Tools } from '@babylonjs/core/Misc/tools';
 
-import '@babylonjs/core/Engines/Extensions/engine.externalTexture';
+//import '@babylonjs/core/Engines/Extensions/engine.externalTexture';
 
 const BASE_URL = import.meta.env.BASE_URL || '/';
 
-export default {
-    data() {
-        return {
-            gl: null,
-            scene: null,
-            filter_button: null,
-            filter: 'standard',
-            materials: {},
-            selected_texture: 'video',
-            textures: {video: null, webcam: null},
-            start_stop: 'Stop'
+let data = reactive({
+    gl: null,
+    scene: null,
+    filter_button: null,
+    filter: 'standard',
+    filter_options: [
+        {id: 'standard', name: 'Standard', selected: true},
+        {id: 'blackwhite', name: 'Black & White', selected: false},
+        {id: 'fisheye', name: 'Fish Eye', selected: false},
+        {id: 'ripple', name: 'Ripple', selected: false},
+        {id: 'toon', name: 'Toonify', selected: false},
+        {id: 'custom', name: 'Custom', selected: false}
+    ],
+    materials: {},
+    selected_texture: 'video',
+    textures: {video: null, webcam: null},
+    start_stop: 'Stop'
+});
+
+
+function createShaderMaterial(shader, scene) {
+    let material = new ShaderMaterial(shader, scene, BASE_URL + 'shaders/' + shader, {
+        attributes: ['position', 'uv'],
+        uniforms: ['worldViewProjection'],
+        samplers: ['image']
+    });
+    material.backFaceCulling = false;
+    return material;
+}
+
+function selectFilter(event) {
+    data.filter = event.target.id;
+    data.filter_button.setAttribute('selected', 'false');
+    let new_filter_button = document.getElementById(event.target.id + '_button');
+    new_filter_button.setAttribute('selected', 'true');
+    data.filter_button = new_filter_button;
+}
+
+function toggleImageInput(event) {
+    if (data.selected_texture === 'video') {
+        data.selected_texture = 'webcam';
+        data.textures.video.video.pause();
+        if (data.textures.webcam === null && data.start_stop === 'Stop') {
+            VideoTexture.CreateFromWebCam(data.scene, (texture) => {
+                data.textures.webcam = texture;
+            }, {width: {ideal: 1280}, height: {ideal: 720}}, false, false);
         }
-    },
-    methods: {
-        createShaderMaterial(shader, scene) {
-            let material = new ShaderMaterial(shader, scene, BASE_URL + 'shaders/' + shader, {
-                attributes: ['position', 'uv'],
-                uniforms: ['worldViewProjection'],
-                samplers: ['image']
+    }
+    else {
+        data.selected_texture = 'video';
+        if (data.textures.webcam !== null) {
+            let webcam_stream = data.textures.webcam.video.srcObject;
+            webcam_stream.getTracks().forEach((track) => {
+                track.stop();
             });
-            material.backFaceCulling = false;
-            return material;
-        },
-
-        selectFilter(event) {
-            this.filter = event.target.id;
-            this.filter_button.setAttribute('selected', 'false');
-            let new_filter_button = document.getElementById(event.target.id + '_button');
-            new_filter_button.setAttribute('selected', 'true');
-            this.filter_button = new_filter_button;
-        },
-
-        toggleImageInput(event) {
-            if (this.selected_texture === 'video') {
-                this.selected_texture = 'webcam';
-                this.textures.video.video.pause();
-                if (this.textures.webcam === null && this.start_stop === 'Stop') {
-                    VideoTexture.CreateFromWebCam(this.scene, (texture) => {
-                        this.textures.webcam = texture;
-                    }, {width: {ideal: 1280}, height: {ideal: 720}}, false, false);
-                }
-            }
-            else {
-                this.selected_texture = 'video';
-                if (this.textures.webcam !== null) {
-                    let webcam_stream = this.textures.webcam.video.srcObject;
-                    webcam_stream.getTracks().forEach((track) => {
-                        track.stop();
-                    });
-                    this.textures.webcam.dispose();
-                    this.textures.webcam = null;
-                }
-                if (this.start_stop === 'Stop') {
-                    this.textures.video.video.play();
-                }
-            }
-        },
-
-        startStop(event) {
-            let start_stop_button = document.getElementById('start_stop');
-            if (this.start_stop === 'Start') {
-                this.start_stop = 'Stop';
-                start_stop_button.style.backgroundColor = '#D85A58';
-                if (this.selected_texture === 'video') {
-                    this.textures.video.video.play();
-                }
-                else {
-                    VideoTexture.CreateFromWebCam(this.scene, (texture) => {
-                        console.log('here', texture);
-                        this.textures.webcam = texture;
-                    }, {width: {ideal: 1280}, height: {ideal: 720}}, false, false);
-                }
-            }
-            else {
-                this.start_stop = 'Start';
-                start_stop_button.style.backgroundColor = '#48C45B';
-                if (this.selected_texture === 'video') {
-                    this.textures.video.video.pause();
-                }
-                else {
-                    let webcam_stream = this.textures.webcam.video.srcObject;
-                    webcam_stream.getTracks().forEach((track) => {
-                        track.stop();
-                    });
-                    this.textures.webcam.dispose();
-                    this.textures.webcam = null;
-                }
-            }
+            data.textures.webcam.dispose();
+            data.textures.webcam = null;
         }
-    },
-    mounted() {
-        // Get the canvas element from the DOM
-        const canvas = document.getElementById('renderCanvas');
-        canvas.width = 800;
-        canvas.height = 450;
-
-        // Register callbacks for selecting filters
-        let filters = document.getElementsByClassName('filter_button');
-        for(let i = 0; i < filters.length; i++) {
-            filters[i].addEventListener('click', this.selectFilter, false);
+        if (data.start_stop === 'Stop') {
+            data.textures.video.video.play();
         }
-        this.filter_button = document.getElementById('standard_button');
-
-        // Create a WebGL 2 rendering context
-        this.gl = canvas.getContext('webgl2');
-        if (!this.gl) {
-            alert('Error: Browser does not support WebGL2 Canvas');
-            return;
-        }
-
-        // Associate a Babylon Render Engine to it.
-        const engine = new Engine(this.gl);
-
-        // Create our first scene.
-        this.scene = new Scene(engine);
-        this.scene.useRightHandedSystem = true;
-        this.scene.skipFrustumClipping = true;
-
-        // Add a camera to the scene
-        let camera = new UniversalCamera('camera', new Vector3(0.0, 0.0, 0.0), this.scene);
-        camera.detachControl();
-
-        // Create materials
-        this.materials.standard = this.createShaderMaterial('standard', this.scene);
-        this.materials.blackwhite = this.createShaderMaterial('blackwhite', this.scene);
-        this.materials.fisheye = this.createShaderMaterial('fisheye', this.scene);
-        this.materials.ripple = this.createShaderMaterial('ripple', this.scene);
-        this.materials.toon = this.createShaderMaterial('toon', this.scene);
-        this.materials.custom = this.createShaderMaterial('custom', this.scene);
-
-        // Create video textures
-        this.textures.video = new VideoTexture('video', BASE_URL + 'videos/dm_vector.mp4', this.scene, false,
-                                               false, VideoTexture.BILINEAR_SAMPLINGMODE, 
-                                               {autoUpdateTexture: true, autoPlay: true, loop: true, muted: true});
-
-        this.materials.standard.setTexture('image', this.textures.video);
-        this.materials.blackwhite.setTexture('image', this.textures.video);
-        this.materials.fisheye.setTexture('image', this.textures.video);
-        this.materials.ripple.setTexture('image', this.textures.video);
-        this.materials.toon.setTexture('image', this.textures.video);
-        this.materials.custom.setTexture('image', this.textures.video);
-
-        // Create simple rectangle model
-        let rect = new Mesh('rect', this.scene);
-        let vertex_positions = [
-            -1.0, -1.0,  0.0, // vertex 0 (x,y,z)
-             1.0, -1.0,  0.0, // vertex 1 (x,y,z)
-             1.0,  1.0,  0.0, // vertex 2 (x,y,z)
-            -1.0,  1.0,  0.0  // vertex 3 (x,y,z)
-        ];
-        let vertex_texcoords = [
-            0.0, 0.0, // vertex 0 (u,v)
-            1.0, 0.0, // vertex 1 (u,v)
-            1.0, 1.0, // vertex 2 (u,v)
-            0.0, 1.0  // vertex 3 (u,v)
-        ]
-        let triangle_indices = [
-            0, 1, 2,              // connect vertices 0,1,2 to make a triangle
-            0, 2, 3               // connect vertices 0,2,3 to make a triangle
-        ];
-        let vertex_data = new VertexData();
-        vertex_data.positions = vertex_positions;
-        vertex_data.uvs = vertex_texcoords;
-        vertex_data.indices = triangle_indices;
-        vertex_data.applyToMesh(rect);
-
-        // Assign triangle a material
-        rect.material = this.materials.standard;
-
-        // Animation function - called before each frame gets rendered
-        this.scene.onBeforeRenderObservable.add(() => {
-            if (this.filter !== rect.material.name) {
-                rect.material = this.materials[this.filter];
-            }
-
-            if (this.textures[this.selected_texture] !== null) {
-                this.materials[this.filter].setTexture('image', this.textures[this.selected_texture]);
-            }
-        });
-
-        // Render every frame
-        engine.runRenderLoop(() => {
-            this.scene.render();
-        });
     }
 }
+
+function startStop(event) {
+    let start_stop_button = document.getElementById('start_stop');
+    if (data.start_stop === 'Start') {
+        data.start_stop = 'Stop';
+        start_stop_button.style.backgroundColor = '#D85A58';
+        if (data.selected_texture === 'video') {
+            data.textures.video.video.play();
+        }
+        else {
+            VideoTexture.CreateFromWebCam(data.scene, (texture) => {
+                data.textures.webcam = texture;
+            }, {width: {ideal: 1280}, height: {ideal: 720}}, false, false);
+        }
+    }
+    else {
+        data.start_stop = 'Start';
+        start_stop_button.style.backgroundColor = '#48C45B';
+        if (data.selected_texture === 'video') {
+            data.textures.video.video.pause();
+        }
+        else {
+            let webcam_stream = data.textures.webcam.video.srcObject;
+            webcam_stream.getTracks().forEach((track) => {
+                track.stop();
+            });
+            data.textures.webcam.dispose();
+            data.textures.webcam = null;
+        }
+    }
+}
+
+onMounted(() => {
+    // Get the canvas element from the DOM
+    const canvas = document.getElementById('renderCanvas');
+    canvas.width = 800;
+    canvas.height = 450;
+
+    // Set initial selected filter
+    data.filter_button = document.getElementById('standard_button');
+
+    // Create a WebGL 2 rendering context
+    data.gl = canvas.getContext('webgl2');
+    if (!data.gl) {
+        alert('Error: Browser does not support WebGL2 Canvas');
+        return;
+    }
+
+    // Associate a Babylon Render Engine to it.
+    const engine = new Engine(data.gl);
+
+    // Create our first scene.
+    data.scene = new Scene(engine);
+    data.scene.useRightHandedSystem = true;
+    data.scene.skipFrustumClipping = true;
+
+    // Add a camera to the scene
+    let camera = new UniversalCamera('camera', new Vector3(0.0, 0.0, 0.0), data.scene);
+    camera.detachControl();
+
+    // Create materials
+    data.materials.standard = createShaderMaterial('standard', data.scene);
+    data.materials.blackwhite = createShaderMaterial('blackwhite', data.scene);
+    data.materials.fisheye = createShaderMaterial('fisheye', data.scene);
+    data.materials.ripple = createShaderMaterial('ripple', data.scene);
+    data.materials.toon = createShaderMaterial('toon', data.scene);
+    data.materials.custom = createShaderMaterial('custom', data.scene);
+
+    // Create video textures
+    data.textures.video = new VideoTexture('video', BASE_URL + 'videos/dm_vector.mp4', data.scene, false,
+                                           false, VideoTexture.BILINEAR_SAMPLINGMODE, 
+                                           {autoUpdateTexture: true, autoPlay: true, loop: true, muted: true});
+
+    data.materials.standard.setTexture('image', data.textures.video);
+    data.materials.blackwhite.setTexture('image', data.textures.video);
+    data.materials.fisheye.setTexture('image', data.textures.video);
+    data.materials.ripple.setTexture('image', data.textures.video);
+    data.materials.toon.setTexture('image', data.textures.video);
+    data.materials.custom.setTexture('image', data.textures.video);
+
+    // Create simple rectangle model
+    let rect = new Mesh('rect', data.scene);
+    let vertex_positions = [
+        -1.0, -1.0,  0.0, // vertex 0 (x,y,z)
+         1.0, -1.0,  0.0, // vertex 1 (x,y,z)
+         1.0,  1.0,  0.0, // vertex 2 (x,y,z)
+        -1.0,  1.0,  0.0  // vertex 3 (x,y,z)
+    ];
+    let vertex_texcoords = [
+        0.0, 0.0, // vertex 0 (u,v)
+        1.0, 0.0, // vertex 1 (u,v)
+        1.0, 1.0, // vertex 2 (u,v)
+        0.0, 1.0  // vertex 3 (u,v)
+    ]
+    let triangle_indices = [
+        0, 1, 2,   // connect vertices 0,1,2 to make a triangle
+        0, 2, 3    // connect vertices 0,2,3 to make a triangle
+    ];
+    let vertex_data = new VertexData();
+    vertex_data.positions = vertex_positions;
+    vertex_data.uvs = vertex_texcoords;
+    vertex_data.indices = triangle_indices;
+    vertex_data.applyToMesh(rect);
+
+    // Assign triangle a material
+    rect.material = data.materials.standard;
+
+    // Animation function - called before each frame gets rendered
+    data.scene.onBeforeRenderObservable.add(() => {
+        if (data.filter !== rect.material.name) {
+            rect.material = data.materials[data.filter];
+        }
+
+        if (data.textures[data.selected_texture] !== null) {
+            data.materials[data.filter].setTexture('image', data.textures[data.selected_texture]);
+        }
+    });
+
+    // Render every frame
+    engine.runRenderLoop(() => {
+        data.scene.render();
+    });
+});
 </script>
 
 <template>
@@ -206,23 +209,8 @@ export default {
     <br/>
     <div class="spacer"></div>
     <div id="gui">
-        <div id="standard_button" class="filter_button" selected="true">
-            <p id="standard">Standard</p>
-        </div>
-        <div id="blackwhite_button" class="filter_button">
-            <p id="blackwhite">Black & White</p>
-        </div>
-        <div id="fisheye_button" class="filter_button">
-            <p id="fisheye">Fish Eye</p>
-        </div>
-        <div id="ripple_button" class="filter_button">
-            <p id="ripple">Ripple</p>
-        </div>
-        <div id="toon_button" class="filter_button">
-            <p id="toon">Toonify</p>
-        </div>
-        <div id="custom_button" class="filter_button">
-            <p id="custom">Custom</p>
+        <div v-for="f in data.filter_options" :id="f.id + '_button'" class="filter_button" :selected="f.selected"  @click="selectFilter">
+            <p :id="f.id">{{ f.name }}</p>
         </div>
     </div>
     <div class="spacer"></div>
@@ -242,7 +230,7 @@ export default {
             </div>
         </div>
         <div id="start_stop_button">
-            <p id="start_stop" @click="startStop">{{ start_stop }}</p>
+            <p id="start_stop" @click="startStop">{{ data.start_stop }}</p>
         </div>
     </div>
 </template>
