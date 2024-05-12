@@ -9,9 +9,6 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { ShaderMaterial } from '@babylonjs/core/Materials/shaderMaterial';
 import { VideoTexture } from '@babylonjs/core/Materials/Textures/videoTexture';
-import { Tools } from '@babylonjs/core/Misc/tools';
-
-//import '@babylonjs/core/Engines/Extensions/engine.externalTexture';
 
 const BASE_URL = import.meta.env.BASE_URL || '/';
 
