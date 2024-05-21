@@ -7,6 +7,7 @@ in vec2 uv;
 
 // Output
 out vec2 model_uv;
+out float sceneTime;
 
 void main() {
     // Pass UV coordinate onto the fragment shader

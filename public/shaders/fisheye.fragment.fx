@@ -12,5 +12,9 @@ out vec4 FragColor;
 
 void main() {
     // Color
-    FragColor = texture(image, model_uv);
+    vec2 translatedCoordinates = (model_uv * 2.0) - 1.0;
+    float theta = atan(translatedCoordinates.y, translatedCoordinates.x);
+    float radius = pow(length(translatedCoordinates), 1.5);
+    vec2 fishEye = vec2(radius * cos(theta), radius * sin(theta));
+    FragColor = texture(image, 0.5 * (fishEye + 1.0));
 }

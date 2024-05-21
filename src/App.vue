@@ -35,7 +35,7 @@ let data = reactive({
 function createShaderMaterial(shader, scene) {
     let material = new ShaderMaterial(shader, scene, BASE_URL + 'shaders/' + shader, {
         attributes: ['position', 'uv'],
-        uniforms: ['worldViewProjection'],
+        uniforms: ['worldViewProjection', 'time', 'videoWidth', 'videoHeight'],
         samplers: ['image']
     });
     material.backFaceCulling = false;
@@ -144,9 +144,12 @@ onMounted(() => {
     data.materials.custom = createShaderMaterial('custom', data.scene);
 
     // Create video textures
-    data.textures.video = new VideoTexture('video', BASE_URL + 'videos/dm_vector.mp4', data.scene, false,
+    data.textures.video = new VideoTexture('video', BASE_URL + 'videos/jack_running.mp4', data.scene, false,
                                            false, VideoTexture.BILINEAR_SAMPLINGMODE, 
                                            {autoUpdateTexture: true, autoPlay: true, loop: true, muted: true});
+    // data.textures.video = new VideoTexture('video', BASE_URL + 'videos/dm_vector.mp4', data.scene, false,
+    //                                        false, VideoTexture.BILINEAR_SAMPLINGMODE, 
+    //                                        {autoUpdateTexture: true, autoPlay: true, loop: true, muted: true});
 
     data.materials.standard.setTexture('image', data.textures.video);
     data.materials.blackwhite.setTexture('image', data.textures.video);
@@ -154,6 +157,14 @@ onMounted(() => {
     data.materials.ripple.setTexture('image', data.textures.video);
     data.materials.toon.setTexture('image', data.textures.video);
     data.materials.custom.setTexture('image', data.textures.video);
+
+    let time = 0.0;
+    data.materials.standard.setFloat('time', time);
+    data.materials.blackwhite.setFloat('time', time);
+    data.materials.fisheye.setFloat('time', time);
+    data.materials.ripple.setFloat('time', time);
+    data.materials.toon.setFloat('time', time);
+    data.materials.custom.setFloat('time', time);
 
     // Create simple rectangle model
     let rect = new Mesh('rect', data.scene);
@@ -186,10 +197,18 @@ onMounted(() => {
     data.scene.onBeforeRenderObservable.add(() => {
         if (data.filter !== rect.material.name) {
             rect.material = data.materials[data.filter];
-        }
+        }        
 
         if (data.textures[data.selected_texture] !== null) {
             data.materials[data.filter].setTexture('image', data.textures[data.selected_texture]);
+            
+            // Pass current time to all shaders
+            time += (1.0 / 60.0) * data.scene.getAnimationRatio();
+            data.materials[data.filter].setFloat('time', time);
+
+            // Pass video width and height to all shaders
+            data.materials[data.filter].setFloat('videoWidth', data.textures[data.selected_texture].video.videoWidth);
+            data.materials[data.filter].setFloat('videoHeight', data.textures[data.selected_texture].video.videoHeight);
         }
     });
 
