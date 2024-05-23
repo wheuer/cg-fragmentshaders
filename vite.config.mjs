@@ -6,6 +6,10 @@ import vue from '@vitejs/plugin-vue'
 // https://vitejs.dev/config/
 export default defineConfig({
   base: '/cg-fragmentshaders/',
+  build: { 
+    outDir: 'docs', 
+    emptyOutDir: true 
+  },
   plugins: [vue()],
   resolve: {
     alias: {
